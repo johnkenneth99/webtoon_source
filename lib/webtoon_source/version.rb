@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
-module WebtoonSource
-  VERSION = "0.3.0"
+class WebtoonSource
+  VERSION = "0.5.0"
 end
