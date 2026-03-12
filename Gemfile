@@ -12,4 +12,4 @@ gem "rspec", "~> 3.0"
 
 gem "rubocop", "~> 1.21"
 
-gem 'faraday', '~> 2.14', '>= 2.14.1'
+gem "faraday", "~> 2.14", ">= 2.14.1"
