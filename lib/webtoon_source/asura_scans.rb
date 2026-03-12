@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
 class WebtoonSource::AsuraScans
-  HOST_NAME = "https://asuracomic.net"
-
-  def initialize(host_name = HOST_NAME)
-    @conn = Faraday.new(host_name)
+  def initialize(domain)
+    @conn = Faraday.new(domain)
   end
 
   def latest_updates(params = { page: 1 })
@@ -21,5 +19,9 @@ class WebtoonSource::AsuraScans
 
       [slug, thumbnail_link]
     end
+  end
+
+  def download(params)
+    p params
   end
 end
