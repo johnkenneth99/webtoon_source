@@ -16,4 +16,9 @@ class WebtoonSource::Jikan
     response = @conn.get("#{VERSION}/manga/#{mal_id}/full")
     response.body["data"]
   end
+
+  def search(params)
+    response = @conn.get("#{VERSION}/manga", params)
+    response.body
+  end
 end

@@ -63,6 +63,10 @@ class WebtoonSource
     jikan_service.manga_full_by_id(mal_id)
   end
 
+  def search(params)
+    jikan_service.search(params)
+  end
+
   private
 
   def domain_callback(new_domain)
