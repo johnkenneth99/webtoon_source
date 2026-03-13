@@ -2,6 +2,7 @@
 
 require_relative "webtoon_source/version"
 require_relative "webtoon_source/asura_scans"
+require_relative "webtoon_source/jikan"
 require "faraday"
 require "fileutils"
 
@@ -58,6 +59,10 @@ class WebtoonSource
     @source.panels(params)
   end
 
+  def metadata(mal_id)
+    jikan_service.manga_full_by_id(mal_id)
+  end
+
   private
 
   def domain_callback(new_domain)
@@ -68,5 +73,10 @@ class WebtoonSource
     @source = @source_class.new(@domain) do |config|
       config.storage_path = new_storage_path
     end
+  end
+
+  def jikan_service
+    service ||= Jikan.new
+    service
   end
 end
