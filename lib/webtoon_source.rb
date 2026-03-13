@@ -3,12 +3,12 @@
 require_relative "webtoon_source/version"
 require_relative "webtoon_source/asura_scans"
 require "faraday"
+require "fileutils"
 
+# This is the main namespace for WebtoonSource.
 class WebtoonSource
   class Error < StandardError; end
-
-  attr_accessor :storage_path
-  attr_reader :domain
+  attr_reader :storage_path, :domain
 
   DEFAULT_STORAGE_PATH = File.join(Dir.home, "webtoon_source")
 
@@ -27,7 +27,9 @@ class WebtoonSource
     @domain = DOMAINS[platform]
     @source_class = SOURCES[platform] || raise(WebtoonSource::Error, "Unknown platform: #{platform}")
 
-    @source = @source_class.new(@domain)
+    @source = @source_class.new(@domain) do |config|
+      config.storage_path = @storage_path
+    end
 
     yield(self) if block_given?
   end
@@ -37,9 +39,14 @@ class WebtoonSource
     @domain = value
   end
 
+  def storage_path=(value)
+    storage_path_callback(value)
+    @storage_path = value
+  end
+
   # Checks if a specific chapter for a webtoon has been downloaded.
-  def downloaded?(name, chapter)
-    path = File.join(@storage_path, name, chapter.to_s)
+  def downloaded?(chapter_path)
+    path = File.join(@storage_path, chapter_path)
     Dir.exist?(path) && !Dir.empty?(path)
   end
 
@@ -47,9 +54,19 @@ class WebtoonSource
     @source.download(params)
   end
 
+  def panels(params)
+    @source.panels(params)
+  end
+
   private
 
   def domain_callback(new_domain)
     @source = @source_class.new(new_domain)
+  end
+
+  def storage_path_callback(new_storage_path)
+    @source = @source_class.new(@domain) do |config|
+      config.storage_path = new_storage_path
+    end
   end
 end
