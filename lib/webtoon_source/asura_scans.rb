@@ -32,9 +32,9 @@ class WebtoonSource::AsuraScans
   end
 
   def download(params) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
-    panels, chapter, name = params.values_at(:panels, :chapter, :name)
+    panels, chapter, directory = params.values_at(:panels, :chapter, :directory)
 
-    chapter_storage_path = File.join(@storage_path, name, chapter.to_s)
+    chapter_storage_path = File.join(@storage_path, directory, chapter.to_s)
 
     FileUtils.mkdir_p(chapter_storage_path) unless Dir.exist?(chapter_storage_path)
 
@@ -61,13 +61,25 @@ class WebtoonSource::AsuraScans
     slug.match(SERIES_NAME_PATTERN).to_a.last
   end
 
-  def panels(params)
-    slug, chapter = params.values_at(:slug, :chapter)
-    chapter_slug = File.join("series", slug, "chapter", chapter.to_s)
-
+  def panels(chapter_slug)
     response = @conn.get(chapter_slug)
 
     panels = response.body.scan(PANEL_PATTERN).uniq
     panels.sort { |a, b| a[PANEL_ORDER].to_i <=> b[PANEL_ORDER].to_i }
+  end
+
+  def chapters(slug)
+    response = @conn.get("series/#{slug}")
+    chapter_pattern = %r{\\"href\\":\\"#{slug}/chapter/([^"]+)\\"}
+
+    chapters = response.body.scan(chapter_pattern).flatten.uniq
+
+    sorted = chapters.sort { |a, b| a.to_i <=> b.to_i }
+
+    sorted.map do |chapter|
+      chapter_slug = "series/#{slug}/chapter/#{chapter}"
+
+      { chapter_number: chapter, chapter_slug: }
+    end
   end
 end

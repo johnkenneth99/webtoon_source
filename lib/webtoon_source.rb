@@ -55,8 +55,12 @@ class WebtoonSource
     @source.download(params)
   end
 
-  def panels(params)
-    @source.panels(params)
+  def panels(chapter_slug)
+    @source.panels(chapter_slug)
+  end
+
+  def chapters(slug)
+    @source.chapters(slug)
   end
 
   def metadata(mal_id)
