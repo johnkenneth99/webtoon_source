@@ -14,7 +14,7 @@ class WebtoonSource
   DEFAULT_STORAGE_PATH = File.join(Dir.home, "webtoon_source")
 
   DOMAINS = {
-    asura_scans: "https://asuracomic.net",
+    asura_scans: "https://asurascans.com",
     manhuaus: "https://manhuaus.com/"
   }.freeze
 

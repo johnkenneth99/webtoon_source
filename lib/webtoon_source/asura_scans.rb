@@ -6,17 +6,19 @@ class WebtoonSource::AsuraScans
   SERIES_NAME_PATTERN = /(.+)-/
   PANEL_PATTERN = %r{{\\"order\\":(\d+),\\"url\\":\\"(https://gg.asuracomic.net/storage/media/\d+/conversions/[^"]+)\\"}}
 
-  PANEL_ORDER = 0
-  PANEL_LINK = 1
+  PANEL_ORDER = 1
+  PANEL_LINK = 0
 
   def initialize(domain)
-    @conn = Faraday.new(domain)
+    @conn = Faraday.new(domain) do |config|
+      config.headers["User-Agent"] = "WebtoonSource/#{WebtoonSource::VERSION}"
+    end
 
     yield(self) if block_given?
   end
 
   def latest_updates(params = { page: 1 })
-    response = @conn.get("/series", params)
+    response = @conn.get("/comics", params)
     # Capture group 1 - series slug
     # Capture group 2 - anchor tag inner content.
     series_pattern = %r{<a\s+href="series/([^"]+)"[^>]*>(.*?)</a>}
@@ -43,7 +45,7 @@ class WebtoonSource::AsuraScans
 
     media_conn = Faraday.new(panel_domain)
 
-    panels.each do |order, link|
+    panels.each do |link, order|
       panel_path = URI(link).path
       panel_name = "#{order.rjust(2, "0")}.webp"
 
@@ -63,23 +65,26 @@ class WebtoonSource::AsuraScans
 
   def panels(chapter_slug)
     response = @conn.get(chapter_slug)
+    chapter_number = chapter_slug.match(%r{chapter/(.+)}).to_a.last
 
-    panels = response.body.scan(PANEL_PATTERN).uniq
+    panel_pattern = %r{(https://cdn.asurascans.com/asura-images/chapters/.+?/#{chapter_number}/(\d+)\.webp)}
+
+    panels = response.body.scan(panel_pattern).uniq
     panels.sort { |a, b| a[PANEL_ORDER].to_i <=> b[PANEL_ORDER].to_i }
   end
 
   def chapters(slug)
-    response = @conn.get("series/#{slug}")
-    chapter_pattern = %r{\\"href\\":\\"#{slug}/chapter/([^"]+)\\"}
+    response = @conn.get("comics/#{slug}")
+    chapter_pattern = %r{<a\shref="/comics/#{slug}/chapter/([^"]+)}
 
     chapters = response.body.scan(chapter_pattern).flatten.uniq
 
     sorted = chapters.sort { |a, b| a.to_i <=> b.to_i }
 
     sorted.map do |chapter|
-      chapter_slug = "series/#{slug}/chapter/#{chapter}"
+      chapter_slug = "comics/#{slug}/chapter/#{chapter}"
 
-      { chapter_number: chapter, chapter_slug: }
+      { chapter_slug:, chapter_number: chapter }
     end
   end
 end
