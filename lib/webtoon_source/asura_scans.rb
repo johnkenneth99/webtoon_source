@@ -87,4 +87,20 @@ class WebtoonSource::AsuraScans
       { chapter_slug:, chapter_number: chapter }
     end
   end
+
+  def search(params)
+    title, comic_type = params.values_at(:title, :comic_type)
+
+    search_params = {
+      q: title,
+      type: comic_type
+    }
+
+    response = @conn.get("browse", search_params)
+
+    slug_pattern = %r{<a\s+href="/comics/([^"]+)"}
+    slugs = response.body.scan(slug_pattern).flatten.uniq
+
+    slugs.first
+  end
 end
