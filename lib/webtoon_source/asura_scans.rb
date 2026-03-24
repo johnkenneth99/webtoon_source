@@ -88,9 +88,10 @@ class WebtoonSource::AsuraScans
     end
   end
 
-  def search(params)
-    title, comic_type = params.values_at(:title, :comic_type)
+  def search(params) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+    title, comic_type, titles = params.values_at(:title, :comic_type, :titles)
 
+    # TODO: Maybe add genre to further narrow down the comic.
     search_params = {
       q: title,
       type: comic_type
@@ -98,9 +99,18 @@ class WebtoonSource::AsuraScans
 
     response = @conn.get("browse", search_params)
 
-    slug_pattern = %r{<a\s+href="/comics/([^"]+)"}
-    slugs = response.body.scan(slug_pattern).flatten.uniq
+    slug_pattern = %r{<a\s+href="/comics/([^"]+)">(.+)</a>}
+    matches = response.body.scan(slug_pattern).uniq
 
-    slugs.first
+    slug = nil
+
+    matches.each do |match|
+      captured_slug, anchor_inner_text = match
+      captured_title = anchor_inner_text.match(%r{<h3[^>]+>(.+?)</h3>}).to_a.last.strip
+
+      slug = captured_slug if titles.include?(captured_title)
+    end
+
+    slug
   end
 end
