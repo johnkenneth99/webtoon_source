@@ -3,8 +3,16 @@
 require_relative "webtoon_source/version"
 require_relative "webtoon_source/asura_scans"
 require_relative "webtoon_source/jikan"
+
 require "faraday"
+require "faraday/xml"
+require "faraday/follow_redirects"
+
+require "nokogiri"
+
 require "fileutils"
+require "open-uri"
+require "json"
 
 # This is the main namespace for WebtoonSource.
 class WebtoonSource

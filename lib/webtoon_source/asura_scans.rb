@@ -4,50 +4,33 @@ class WebtoonSource::AsuraScans
   attr_accessor :storage_path
 
   SERIES_NAME_PATTERN = /(.+)-/
-  PANEL_PATTERN = %r{{\\"order\\":(\d+),\\"url\\":\\"(https://gg.asuracomic.net/storage/media/\d+/conversions/[^"]+)\\"}}
-
-  PANEL_ORDER = 1
-  PANEL_LINK = 0
 
   def initialize(domain)
+    @domain = domain
     @conn = Faraday.new(domain) do |config|
       config.headers["User-Agent"] = "WebtoonSource/#{WebtoonSource::VERSION}"
+
+      config.response :follow_redirects
+      config.response :json, content_type: /\bjson$/
+      config.response :xml, content_type: /\bxml$/
+
+      config.adapter Faraday.default_adapter
     end
 
     yield(self) if block_given?
   end
 
-  def latest_updates(params = { page: 1 })
-    response = @conn.get("/comics", params)
-    # Capture group 1 - series slug
-    # Capture group 2 - anchor tag inner content.
-    series_pattern = %r{<a\s+href="series/([^"]+)"[^>]*>(.*?)</a>}
-
-    matches = response.body.scan(series_pattern)
-
-    matches.map do |match|
-      slug, anchor_inner_content = match
-      _, thumbnail_link = anchor_inner_content.match(/src="([^"]*)"/).to_a
-
-      [slug, thumbnail_link]
-    end
-  end
-
   def download(params) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
-    panels, chapter, directory = params.values_at(:panels, :chapter, :directory)
+    base_url, panels, chapter, directory = params.values_at(:base_url, :panels, :chapter, :directory)
 
     chapter_storage_path = File.join(@storage_path, directory, chapter.to_s)
 
     FileUtils.mkdir_p(chapter_storage_path) unless Dir.exist?(chapter_storage_path)
 
-    panel_link = URI(panels.first[PANEL_LINK])
-    panel_domain = "#{panel_link.scheme}://#{panel_link.hostname}"
+    media_conn = Faraday.new(base_url)
 
-    media_conn = Faraday.new(panel_domain)
-
-    panels.each do |link, order|
-      panel_path = URI(link).path
-      panel_name = "#{order.rjust(2, "0")}.webp"
+    panels.each_with_index do |panel_path, order|
+      panel_name = "#{order.to_s.rjust(2, "0")}.webp"
 
       panel_storage_path = File.join(chapter_storage_path, panel_name)
 
@@ -59,58 +42,65 @@ class WebtoonSource::AsuraScans
     end
   end
 
-  def extract_series_name(slug)
-    slug.match(SERIES_NAME_PATTERN).to_a.last
-  end
+  def panels(chapter_path)
+    response = @conn.get(chapter_path)
 
-  def panels(chapter_slug)
-    response = @conn.get(chapter_slug)
-    chapter_number = chapter_slug.match(%r{chapter/(.+)}).to_a.last
+    chapter_number = chapter_path.match(%r{chapter/(.+)}).to_a.last
+    panel_pattern = %r{https://cdn.asurascans.com/asura-images/chapters/.+?/#{chapter_number}/.+?\.webp}
 
-    panel_pattern = %r{(https://cdn.asurascans.com/asura-images/chapters/.+?/#{chapter_number}/(\d+)\.webp)}
+    panel_urls = response.body.scan(panel_pattern).uniq
+    panel_url = URI(panel_urls.first)
 
-    panels = response.body.scan(panel_pattern).uniq
-    panels.sort { |a, b| a[PANEL_ORDER].to_i <=> b[PANEL_ORDER].to_i }
-  end
-
-  def chapters(slug)
-    response = @conn.get("comics/#{slug}")
-    chapter_pattern = %r{<a\shref="/comics/#{slug}/chapter/([^"]+)}
-
-    chapters = response.body.scan(chapter_pattern).flatten.uniq
-
-    sorted = chapters.sort { |a, b| a.to_i <=> b.to_i }
-
-    sorted.map do |chapter|
-      chapter_slug = "comics/#{slug}/chapter/#{chapter}"
-
-      { chapter_slug:, chapter_number: chapter }
-    end
-  end
-
-  def search(params) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
-    title, comic_type, titles = params.values_at(:title, :comic_type, :titles)
-
-    # TODO: Maybe add genre to further narrow down the comic.
-    search_params = {
-      q: title,
-      type: comic_type
+    {
+      base_url: "#{panel_url.scheme}://#{panel_url.hostname}",
+      panels: panel_urls.map { |link| URI(link).path }
     }
+  end
 
-    response = @conn.get("browse", search_params)
+  def chapters(slug) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+    response = @conn.get(slug)
+    # slug with hash path
+    new_slug = response.env.url.path
 
-    slug_pattern = %r{<a\s+href="/comics/([^"]+)">(.+)</a>}
-    matches = response.body.scan(slug_pattern).uniq
+    doc = Nokogiri::HTML(response.body)
 
-    slug = nil
+    # Get chapter list island
+    island = doc.at_css('astro-island[opts*="ChapterListReact"]')
+    island = doc.at_css('astro-island[component-url*="ChapterListReact"]') if island.nil?
 
-    matches.each do |match|
-      captured_slug, anchor_inner_text = match
-      captured_title = anchor_inner_text.match(%r{<h3[^>]+>(.+?)</h3>}).to_a.last.strip
+    data = JSON.parse(island["props"])
 
-      slug = captured_slug if titles.include?(captured_title)
+    chapter_hash = {}
+
+    normalize(data)["chapters"].each do |item|
+      key = item["number"].to_s
+      chapter_hash[key] = item.except("number")
     end
 
-    slug
+    chapter_links = doc.css("a[href*='#{new_slug}/chapter']").map { |link| link["href"] }.uniq
+
+    mapped_doc = chapter_links.map do |link|
+      chapter_number = link.split("/").last
+
+      {
+        chapter_number:,
+        chapter_path: link,
+        metadata: chapter_hash[chapter_number]
+      }
+    end
+
+    mapped_doc.sort_by { |chapter| -chapter[:chapter_number].to_f }
+  end
+
+  def normalize(obj) # rubocop:disable Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
+    if obj.is_a?(Array) && obj.length == 2 && [0, 1].include?(obj[0])
+      normalize(obj[1])
+    elsif obj.is_a?(Array)
+      obj.map { |item| normalize(item) }
+    elsif obj.is_a?(Hash)
+      obj.transform_values { |v| normalize(v) }
+    else
+      obj
+    end
   end
 end
