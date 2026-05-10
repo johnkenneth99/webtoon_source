@@ -79,10 +79,6 @@ class WebtoonSource
     jikan_service.search(params)
   end
 
-  def search_source(params)
-    @source.search(params)
-  end
-
   private
 
   def domain_callback(new_domain)
