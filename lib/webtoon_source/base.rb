@@ -4,6 +4,8 @@
 # It provides a common interface and shared functionality for fetching
 # webtoon data from various platforms.
 class WebtoonSource::Base
+  attr_accessor :storage_path, :series_slug, :domain_name, :chapter_number
+
   # The default path where webtoon panels are stored.
   DEFAULT_STORAGE_PATH = File.join(Dir.home, "webtoon_source")
 

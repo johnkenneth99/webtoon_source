@@ -72,6 +72,7 @@ class WebtoonSource::VortexScans < WebtoonSource::Base
       response = @conn.get("/series/#{@series_slug}")
     else
       response = @conn.get(chapter_url)
+      @series_slug = chapter_url.split("/").last
     end
 
     doc = Nokogiri::HTML(response.body)

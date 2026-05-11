@@ -70,6 +70,7 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
       response = @conn.get("/comics/#{@series_slug}")
     else
       response = @conn.get(chapter_url)
+      @series_slug = chapter_url.split("/").last
     end
 
     new_slug = response.env.url.path

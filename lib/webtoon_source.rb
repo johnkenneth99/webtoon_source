@@ -19,35 +19,25 @@ require "json"
 # This is the main namespace for WebtoonSource.
 class WebtoonSource
   class Error < StandardError; end
-  attr_reader :storage_path, :domain
+  attr_reader :storage_path
 
   DEFAULT_STORAGE_PATH = File.join(Dir.home, "webtoon_source")
 
-  DOMAINS = {
-    asura_scans: "https://asurascans.com",
-    manhuaus: "https://manhuaus.com/"
-  }.freeze
-
   SOURCES = {
-    asura_scans: WebtoonSource::AsuraScans
+    asura_scans: WebtoonSource::AsuraScans,
+    vortex_scans: WebtoonSource::VortexScans
   }.freeze
 
   def initialize(platform = :asura_scans)
     @storage_path = DEFAULT_STORAGE_PATH
 
-    @domain = DOMAINS[platform]
     @source_class = SOURCES[platform] || raise(WebtoonSource::Error, "Unknown platform: #{platform}")
 
-    @source = @source_class.new(@domain) do |config|
+    @source = @source_class.new do |config|
       config.storage_path = @storage_path
     end
 
     yield(self) if block_given?
-  end
-
-  def domain=(value)
-    domain_callback(value)
-    @domain = value
   end
 
   def storage_path=(value)
@@ -82,10 +72,6 @@ class WebtoonSource
   end
 
   private
-
-  def domain_callback(new_domain)
-    @source = @source_class.new(new_domain)
-  end
 
   def storage_path_callback(new_storage_path)
     @source = @source_class.new(@domain) do |config|
