@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-# A source implementation for Asura Scans.
-class WebtoonSource::AsuraScans < WebtoonSource::Base
-  # The base URL for the Asura Scans website.
-  BASE_URL = "https://asurascans.com"
-  # The base URL for the Asura Scans CDN.
-  CDN_URL = "https://cdn.asurascans.com"
+# A source implementation for Vortex Scans.
+class WebtoonSource::VortexScans < WebtoonSource::Base
+  # The base URL for the Vortex Scans website.
+  BASE_URL = "https://vortexscans.org"
+  # The base URL for the Vortex Scans CDN.
+  CDN_URL = "https://storage.vortexscans.org"
 
-  # Initializes a new instance of the Asura Scans source.
+  # Initializes a new instance of the Vortex Scans source.
   #
   # @param base_url [String] the base URL of the source.
   # @yield [self] yields the instance to an optional block for configuration.
@@ -28,9 +28,10 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
 
     cdn_conn = Faraday.new(CDN_URL)
 
-    panels.each_with_index do |panel, index|
-      panel_path, extension = panel
-      panel_name = "#{index.to_s.rjust(2, "0")}.#{extension}"
+    panels.each do |panel|
+      panel_path, order, file_extension = panel
+      # Format: "0001", "0002", etc.
+      panel_name = "#{order.slice(2..-1)}.#{file_extension}"
 
       panel_storage_path = File.join(path, panel_name)
 
@@ -49,11 +50,12 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
   def panels
     ensure_present!(:series_slug, :chapter_number)
 
-    path = "/comics/#{@series_slug}/chapter/#{@chapter_number}"
+    path = "/series/#{@series_slug}/chapter-#{@chapter_number}"
 
     response = @conn.get(path)
 
-    panel_pattern = %r{https://cdn.asurascans.com(/asura-images/chapters/.+?/#{@chapter_number}/.+?\.(webp|jpg|jpeg|png))}
+    normalized_slug = @series_slug.gsub(/['"]/, "")
+    panel_pattern = %r{#{CDN_URL}(/upload/series/#{normalized_slug}.+?/page-(\d+).+?\.(webp|jpg|jpeg|png))}
 
     response.body.scan(panel_pattern).uniq
   end
@@ -67,31 +69,28 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
     if chapter_url.nil?
       ensure_present!(:series_slug)
 
-      response = @conn.get("/comics/#{@series_slug}")
+      response = @conn.get("/series/#{@series_slug}")
     else
       response = @conn.get(chapter_url)
     end
 
-    new_slug = response.env.url.path
     doc = Nokogiri::HTML(response.body)
-
-    # Get chapter list island
-    island = doc.at_css('astro-island[opts*="ChapterListReact"]')
-    island = doc.at_css('astro-island[component-url*="ChapterListReact"]') if island.nil?
+    island = doc.at_css('astro-island[opts*="SeriesChaptersPanelIsland"]')
 
     data = JSON.parse(island["props"])
+    chapter_list = normalize(data).dig("post", "chapters")
 
     chapter_hash = {}
 
-    normalize(data)["chapters"].each do |item|
+    chapter_list.each do |item|
       key = item["number"].to_s
       chapter_hash[key] = item.except("number")
     end
 
-    chapter_links = doc.css("a[href*='#{new_slug}/chapter']").map { |link| link["href"] }.uniq
+    chapter_links = doc.css("a[href*=\"series/#{@series_slug}/chapter\"]").map { |link| link["href"] }.uniq
 
     mapped_doc = chapter_links.map do |link|
-      chapter_number = link.split("/").last
+      chapter_number = link.split("-").last
 
       {
         chapter_number:,

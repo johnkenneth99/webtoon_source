@@ -12,3 +12,6 @@ Metrics/MethodLength:
 
 Metrics/AbcSize:
   Max: 30
+
+Style/ClassAndModuleChildren:
+  Enabled: false
