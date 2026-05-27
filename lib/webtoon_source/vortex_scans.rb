@@ -96,6 +96,7 @@ class WebtoonSource::VortexScans < WebtoonSource::Base
       {
         chapter_number:,
         chapter_path: link,
+        series_slug: @series_slug,
         metadata: chapter_hash[chapter_number]
       }
     end

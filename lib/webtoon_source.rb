@@ -63,6 +63,18 @@ class WebtoonSource
     @source.chapters(slug)
   end
 
+  def series(slug)
+    @source.series(slug)
+  end
+
+  def chapter(number)
+    @source.chapter(number)
+  end
+
+  def directory(name)
+    @source.directory(name)
+  end
+
   def metadata(mal_id)
     jikan_service.manga_full_by_id(mal_id)
   end
