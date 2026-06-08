@@ -83,9 +83,11 @@ class WebtoonSource::VortexScans < WebtoonSource::Base
     data = JSON.parse(island["props"])
     chapter_list = normalize(data).dig("post", "chapters")
 
+    return [] if chapter_list.nil?
+
     mapped_chapters = chapter_list.map do |chapter|
-      chapter_number = chapter["number"]
-      chapter_path = "/series/#{@series_slug}/#{chapter["number"]}"
+      chapter_number = chapter["number"].to_s
+      chapter_path = ["/series", @series_slug, chapter_number].join("/")
 
       metadata = chapter.except(chapter_number).transform_keys { |key| WebtoonSource::Helpers::String.snake_case(key).to_sym }
 

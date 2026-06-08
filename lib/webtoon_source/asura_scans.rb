@@ -60,49 +60,44 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
 
   # Retrieves the list of chapters for the current series.
   #
-  # @param chapter_url [String, nil] an optional URL to fetch chapters from.
+  # @param series_url [String, nil] an optional URL to fetch chapters from.
   # @return [Array<Hash>] the list of chapters with metadata.
   # @raise [ArgumentError] if series_slug is not set and no URL is provided.
-  def chapters(chapter_url = nil) # rubocop:disable Metrics/AbcSize
-    if chapter_url.nil?
+  def chapters(series_url = nil) # rubocop:disable Metrics/AbcSize
+    if series_url.nil?
       ensure_present!(:series_slug)
 
       response = @conn.get("/comics/#{@series_slug}")
     else
-      response = @conn.get(chapter_url)
-      @series_slug = chapter_url.split("/").last
+      response = @conn.get(series_url)
+      @series_slug = series_url.split("/").last
     end
 
-    new_slug = response.env.url.path
     doc = Nokogiri::HTML(response.body)
 
     # Get chapter list island
     island = doc.at_css('astro-island[opts*="ChapterListReact"]')
-    island = doc.at_css('astro-island[component-url*="ChapterListReact"]') if island.nil?
 
     data = JSON.parse(island["props"])
+    chapter_list = normalize(data)["chapters"]
 
-    chapter_hash = {}
+    return [] if chapter_list.nil?
 
-    normalize(data)["chapters"].each do |item|
-      key = item["number"].to_s
-      chapter_hash[key] = item.except("number")
-    end
+    mapped_chapters = chapter_list.map do |chapter|
+      chapter_number = chapter["number"].to_s
+      chapter_path = ["/comics", @series_slug, "chapter", chapter_number].join("/")
 
-    chapter_links = doc.css("a[href*='#{new_slug}/chapter']").map { |link| link["href"] }.uniq
-
-    mapped_doc = chapter_links.map do |link|
-      chapter_number = link.split("/").last
+      metadata = chapter.except(chapter_number).transform_keys { |key| WebtoonSource::Helpers::String.snake_case(key).to_sym }
 
       {
         chapter_number:,
-        chapter_path: link,
+        chapter_path:,
         series_slug: @series_slug,
-        metadata: chapter_hash[chapter_number]
+        metadata:
       }
     end
 
-    mapped_doc.sort_by { |chapter| -chapter[:chapter_number].to_f }
+    mapped_chapters.sort_by { |chapter| -chapter[:chapter_number].to_f }
   end
 
   private
