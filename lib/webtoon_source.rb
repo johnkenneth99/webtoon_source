@@ -6,6 +6,8 @@ require_relative "webtoon_source/asura_scans"
 require_relative "webtoon_source/vortex_scans"
 require_relative "webtoon_source/jikan"
 
+require_relative "webtoon_source/helpers/string"
+
 require "faraday"
 require "faraday/xml"
 require "faraday/follow_redirects"
