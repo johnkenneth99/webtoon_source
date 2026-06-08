@@ -67,7 +67,7 @@ class WebtoonSource::VortexScans < WebtoonSource::Base
   # @param series_url [String, nil] an optional URL to fetch chapters from.
   # @return [Array<Hash>] the list of chapters with metadata.
   # @raise [ArgumentError] if series_slug is not set and no URL is provided.
-  def chapters(series_url = nil)
+  def chapters(series_url = nil) # rubocop:disable Metrics/AbcSize
     if series_url.nil?
       ensure_present!(:series_slug)
 

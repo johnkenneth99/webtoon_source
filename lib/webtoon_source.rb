@@ -4,9 +4,11 @@ require_relative "webtoon_source/version"
 require_relative "webtoon_source/base"
 require_relative "webtoon_source/asura_scans"
 require_relative "webtoon_source/vortex_scans"
+require_relative "webtoon_source/hive_toons"
 require_relative "webtoon_source/jikan"
 
 require_relative "webtoon_source/helpers/string"
+require_relative "webtoon_source/helpers/transformers"
 
 require "faraday"
 require "faraday/xml"
