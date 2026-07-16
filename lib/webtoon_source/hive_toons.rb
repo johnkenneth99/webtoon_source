@@ -3,7 +3,7 @@
 # A source implementation for Hive Toons.
 class WebtoonSource::HiveToons < WebtoonSource::Base
   BASE_URL = "https://hivetoons.org/"
-  MEDIA_STORAGE_URL = "https://storage.hivetoon.com"
+  ALLOWED_CHAPTER_FIELDS = %w[isLocked id number slug title].freeze
 
   def initialize(base_url = BASE_URL, &block)
     super(base_url, &block)
@@ -13,7 +13,7 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
     if chapter_url.nil?
       ensure_present!(:chapter_number, :series_slug, :directory_name)
     else
-      path_segments = chapter_url.split("/")
+      path_segments = chapter_url.delete_suffix("/").split("/")
 
       @series_slug = path_segments[-2]
       @chapter_number = path_segments[-1].split("-").last
@@ -23,17 +23,17 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
 
     FileUtils.mkdir_p(path) unless Dir.exist?(path)
 
-    cdn_conn = Faraday.new(MEDIA_STORAGE_URL)
+    chapter = panels
 
-    panels.each do |panel|
-      panel_path, order, file_extension = panel
-      # Format: "0001", "0002", etc.
-      panel_name = "#{order.slice(2..-1)}.#{file_extension}"
+    cdn_conn = Faraday.new(chapter[:base_url])
+
+    chapter[:panel_list].each do |panel|
+      panel_name = [panel[:order].rjust(2, "0"), ".", panel[:file_extension]].join
 
       panel_storage_path = File.join(path, panel_name)
 
       File.open(panel_storage_path, "wb") do |f|
-        cdn_conn.get(panel_path) do |response|
+        cdn_conn.get(panel[:path]) do |response|
           response.options.on_data = proc { |chunk, _size| f.write chunk }
         end
       end
@@ -48,50 +48,63 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
       response = @conn.get(path)
     else
       response = @conn.get(chapter_url)
-      @series_slug = chapter_url.split("/")[-2]
+      @series_slug = chapter_url.delete_suffix("/").split("/")[-2]
     end
 
-    normalized_slug = @series_slug.gsub(/['"]/, "")
-    panel_pattern = %r{#{MEDIA_STORAGE_URL}(/public/upload/series/#{normalized_slug}.+?/page-(\d+).+?\.(webp|jpg|jpeg|png))} # rubocop:disable Layout/LineLength
+    doc = Nokogiri::HTML(response.body)
+    base_url = nil
 
-    response.body.scan(panel_pattern).uniq
+    panel_list = doc.css("img[src][data-reader-index]").map do |img|
+      panel_uri = URI.parse(img["src"])
+
+      base_url = "#{panel_uri.scheme}://#{panel_uri.host}" if base_url.nil?
+      path = panel_uri.path
+
+      {
+        path:,
+        order: img["data-reader-index"],
+        file_extension: File.extname(path).delete_prefix(".")
+      }
+    end
+
+    {
+      base_url:,
+      panel_list:
+    }
   end
 
   def chapters(series_url = nil) # rubocop:disable Metrics/AbcSize
     if series_url.nil?
       ensure_present!(:series_slug)
-
-      response = @conn.get("/comics/#{@series_slug}")
+      response = @conn.get("/series/#{@series_slug}")
     else
       response = @conn.get(series_url)
-      @series_slug = series_url.split("/").last
+      @series_slug = series_url.delete_suffix("/").split("/").last
     end
 
     doc = Nokogiri::HTML(response.body)
-
     island = doc.at_css('astro-island[opts*="SeriesChaptersPanelIsland"]')
 
     data = JSON.parse(island["props"])
     normalized_data = WebtoonSource::Helpers::Transformers.normalize_astro_island_props(data)
 
-    chapter_list = normalized_data.dig("post", "chapters")
+    chapter_list = normalized_data["initialChap"]
 
     return [] if chapter_list.nil?
 
     mapped_chapters = chapter_list.map do |chapter|
-      chapter_number = chapter["number"].to_s
-      chapter_path = ["/comics", @series_slug, "chapter", chapter_number].join("/")
+      chapter_fields = chapter.filter { |key| ALLOWED_CHAPTER_FIELDS.include?(key) }
+                              .transform_keys { |key| WebtoonSource::Helpers::String.snake_case(key).to_sym }
 
-      metadata = chapter.except(chapter_number).transform_keys { |key| WebtoonSource::Helpers::String.snake_case(key).to_sym }
+      chapter_fields[:number] = chapter_fields [:number].to_s
 
       {
-        chapter_number:,
-        chapter_path:,
+        **chapter_fields,
         series_slug: @series_slug,
-        metadata:
+        path: ["/series", @series_slug, chapter_fields[:slug]].join("/")
       }
     end
 
-    mapped_chapters.sort_by { |chapter| -chapter[:chapter_number].to_f }
+    mapped_chapters.sort_by { |chapter| -chapter[:number].to_f }
   end
 end
