@@ -3,13 +3,14 @@
 # A source implementation for Hive Toons.
 class WebtoonSource::HiveToons < WebtoonSource::Base
   BASE_URL = "https://hivetoons.org/"
-  ALLOWED_CHAPTER_FIELDS = %w[isLocked id number slug title].freeze
+
+  Panels = Data.define(:panel_list, :base_url)
 
   def initialize(base_url = BASE_URL, &block)
     super(base_url, &block)
   end
 
-  def download(chapter_url = nil)
+  def download(chapter_url = nil) # rubocop:disable Metrics/AbcSize
     if chapter_url.nil?
       ensure_present!(:chapter_number, :series_slug, :directory_name)
     else
@@ -23,17 +24,17 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
 
     FileUtils.mkdir_p(path) unless Dir.exist?(path)
 
-    chapter = panels
+    panel_result = panels
 
-    cdn_conn = Faraday.new(chapter[:base_url])
+    cdn_conn = Faraday.new(panel_result.base_url)
 
-    chapter[:panel_list].each do |panel|
-      panel_name = [panel[:order].rjust(2, "0"), ".", panel[:file_extension]].join
+    panel_result.panel_list.each do |panel|
+      panel_name = [panel.order.rjust(2, "0"), ".", panel.file_extension].join
 
       panel_storage_path = File.join(path, panel_name)
 
       File.open(panel_storage_path, "wb") do |f|
-        cdn_conn.get(panel[:path]) do |response|
+        cdn_conn.get(panel.path) do |response|
           response.options.on_data = proc { |chunk, _size| f.write chunk }
         end
       end
@@ -60,17 +61,17 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
       base_url = "#{panel_uri.scheme}://#{panel_uri.host}" if base_url.nil?
       path = panel_uri.path
 
-      {
+      Panel.new(
         path:,
         order: img["data-reader-index"],
         file_extension: File.extname(path).delete_prefix(".")
-      }
+      )
     end
 
-    {
+    PanelResult.new(
       base_url:,
       panel_list:
-    }
+    )
   end
 
   def chapters(series_url = nil) # rubocop:disable Metrics/AbcSize
@@ -98,13 +99,13 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
 
       chapter_fields[:number] = chapter_fields [:number].to_s
 
-      {
+      Chapter.new(
         **chapter_fields,
         series_slug: @series_slug,
         path: ["/series", @series_slug, chapter_fields[:slug]].join("/")
-      }
+      )
     end
 
-    mapped_chapters.sort_by { |chapter| -chapter[:number].to_f }
+    mapped_chapters.sort_by { |chapter| -chapter.number.to_f }
   end
 end

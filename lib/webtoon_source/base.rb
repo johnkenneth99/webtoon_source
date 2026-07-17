@@ -8,6 +8,11 @@ class WebtoonSource::Base
 
   # The default path where webtoon panels are stored.
   DEFAULT_STORAGE_PATH = File.join(Dir.home, "webtoon_source")
+  ALLOWED_CHAPTER_FIELDS = %w[isLocked id number slug title].freeze
+
+  Panel = Data.define(:path, :order, :file_extension)
+  PanelResult = Data.define(:base_url, :panel_list)
+  Chapter = Data.define(:is_locked, :id, :number, :slug, :title, :series_slug, :path)
 
   # Initializes a new instance of the webtoon source.
   #
@@ -34,7 +39,7 @@ class WebtoonSource::Base
   # @param slug [String] the series slug to set.
   # @return [self] the current instance.
   def series(slug)
-    @series_slug = slug
+    @series_slug = slug.delete_suffix("/")
     self
   end
 
@@ -71,11 +76,12 @@ class WebtoonSource::Base
     raise NotImplementedError, "#{self.class} must implement #download"
   end
 
-  # Retrieves the list of panel image paths for the current series and chapter.
+  # Retrieves the list of panel details for the current series and chapter.
   # This method must be implemented by subclasses.
   #
   # @abstract
-  # @return [Array<String>] the list of panel image paths.
+  # @param chapter_url [String] the url of the chapter to get the panels.
+  # @return [PanelResult] the base URL and ordered list of panels for the chapter.
   # @raise [NotImplementedError] if the subclass does not implement this method.
   def panels
     raise NotImplementedError, "#{self.class} must implement #panels"

@@ -13,5 +13,9 @@ Metrics/MethodLength:
 Metrics/AbcSize:
   Max: 30
 
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"
+
 Style/ClassAndModuleChildren:
   Enabled: false
