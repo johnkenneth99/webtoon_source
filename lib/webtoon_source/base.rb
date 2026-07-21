@@ -12,7 +12,7 @@ class WebtoonSource::Base
 
   Panel = Data.define(:path, :order, :file_extension)
   PanelResult = Data.define(:base_url, :panel_list)
-  Chapter = Data.define(:is_locked, :id, :number, :slug, :title, :series_slug, :path)
+  Chapter = Data.define(:is_locked, :id, :number, :slug, :title, :series_slug, :path, :metadata)
 
   # Initializes a new instance of the webtoon source.
   #

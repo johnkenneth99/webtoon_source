@@ -4,8 +4,6 @@
 class WebtoonSource::HiveToons < WebtoonSource::Base
   BASE_URL = "https://hivetoons.org/"
 
-  Panels = Data.define(:panel_list, :base_url)
-
   def initialize(base_url = BASE_URL, &block)
     super(base_url, &block)
   end
