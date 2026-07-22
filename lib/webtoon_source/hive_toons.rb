@@ -8,7 +8,7 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
     super(base_url, &block)
   end
 
-  def download(chapter_url = nil) # rubocop:disable Metrics/AbcSize
+  def download(chapter_url = nil)
     if chapter_url.nil?
       ensure_present!(:chapter_number, :series_slug, :directory_name)
     else
@@ -23,19 +23,7 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
 
     FileUtils.mkdir_p(chapter_directory) unless Dir.exist?(chapter_directory)
 
-    panel_result = panels
-    cdn_conn = Faraday.new(panel_result.base_url)
-
-    panel_result.panel_list.each do |panel|
-      panel_name = [panel.order.rjust(2, "0"), ".", panel.file_extension].join
-      panel_directory = File.join(chapter_directory, panel_name)
-
-      File.open(panel_directory, "wb") do |f|
-        cdn_conn.get(panel.path) do |response|
-          response.options.on_data = proc { |chunk, _size| f.write chunk }
-        end
-      end
-    end
+    download_panels(panels, chapter_directory)
   end
 
   def panels(chapter_url = nil)
@@ -50,25 +38,8 @@ class WebtoonSource::HiveToons < WebtoonSource::Base
     end
 
     doc = Nokogiri::HTML(response.body)
-    base_url = nil
 
-    panel_list = doc.css("img[src][data-reader-index]").map do |img|
-      panel_uri = URI.parse(img["src"])
-
-      base_url = "#{panel_uri.scheme}://#{panel_uri.host}" if base_url.nil?
-      path = panel_uri.path
-
-      Panel.new(
-        path:,
-        order: img["data-reader-index"],
-        file_extension: File.extname(path).delete_prefix(".")
-      )
-    end
-
-    PanelResult.new(
-      base_url:,
-      panel_list:
-    )
+    build_panel_result(doc, index_attribute: "data-reader-index")
   end
 
   def chapters(series_url = nil) # rubocop:disable Metrics/AbcSize,Metrics/PerceivedComplexity

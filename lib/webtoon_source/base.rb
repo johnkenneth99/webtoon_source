@@ -107,4 +107,50 @@ class WebtoonSource::Base
       raise ArgumentError, "@#{attribute} must be set." if instance_variable_get("@#{attribute}").nil?
     end
   end
+
+  # Downloads each panel in the given result and writes it to the given directory.
+  #
+  # @param panel_result [PanelResult] the base URL and ordered list of panels to download.
+  # @param chapter_directory [String] the directory to write the downloaded panels to.
+  def download_panels(panel_result, chapter_directory)
+    cdn_conn = Faraday.new(panel_result.base_url)
+
+    panel_result.panel_list.each do |panel|
+      panel_name = [panel.order.rjust(2, "0"), ".", panel.file_extension].join
+      panel_directory = File.join(chapter_directory, panel_name)
+
+      File.open(panel_directory, "wb") do |f|
+        cdn_conn.get(panel.path) do |response|
+          response.options.on_data = proc { |chunk, _size| f.write chunk }
+        end
+      end
+    end
+  end
+
+  # Builds a PanelResult from a parsed chapter page.
+  #
+  # @param doc [Nokogiri::HTML::Document] the parsed chapter page.
+  # @param index_attribute [String] the image attribute holding the panel's reader order.
+  # @return [PanelResult] the CDN base URL and ordered list of panels found in the document.
+  def build_panel_result(doc, index_attribute:)
+    base_url = nil
+
+    panel_list = doc.css("img[src][#{index_attribute}]").map do |img|
+      panel_uri = URI.parse(img["src"])
+
+      base_url = "#{panel_uri.scheme}://#{panel_uri.host}" if base_url.nil?
+      path = panel_uri.path
+
+      Panel.new(
+        path:,
+        order: img[index_attribute],
+        file_extension: File.extname(path).delete_prefix(".")
+      )
+    end
+
+    PanelResult.new(
+      base_url:,
+      panel_list:
+    )
+  end
 end
