@@ -17,7 +17,6 @@ require "faraday/follow_redirects"
 require "nokogiri"
 
 require "fileutils"
-require "open-uri"
 require "json"
 
 # This is the main namespace for WebtoonSource.

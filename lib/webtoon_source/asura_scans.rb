@@ -2,40 +2,36 @@
 
 # A source implementation for Asura Scans.
 class WebtoonSource::AsuraScans < WebtoonSource::Base
-  # The base URL for the Asura Scans website.
   BASE_URL = "https://asurascans.com"
-  # The base URL for the Asura Scans CDN.
-  CDN_URL = "https://cdn.asurascans.com"
 
-  # Initializes a new instance of the Asura Scans source.
-  #
-  # @param base_url [String] the base URL of the source.
-  # @yield [self] yields the instance to an optional block for configuration.
   def initialize(base_url = BASE_URL, &block)
     super(base_url, &block)
   end
 
-  # Downloads the panels for the current series and chapter.
-  #
-  # @return [Array<String>] the list of panel image paths.
-  # @raise [ArgumentError] if chapter_number, series_slug, or directory_name is not set.
-  def download
-    ensure_present!(:chapter_number, :series_slug, :directory_name)
+  def download(chapter_url = nil) # rubocop:disable Metrics/AbcSize
+    if chapter_url.nil?
+      ensure_present!(:chapter_number, :series_slug, :directory_name)
+    else
+      path_segments = chapter_url.delete_suffix("/").split("/")
 
-    path = File.join(@storage_path, @directory_name, @chapter_number.to_s)
+      @series_slug = path_segments[-3]
+      @chapter_number = path_segments.last
+      @directory_name = @series_slug.gsub("-", "_")
+    end
 
-    FileUtils.mkdir_p(path) unless Dir.exist?(path)
+    chapter_directory = File.join(@storage_path, @directory_name, @chapter_number.to_s)
 
-    cdn_conn = Faraday.new(CDN_URL)
+    FileUtils.mkdir_p(chapter_directory) unless Dir.exist?(chapter_directory)
 
-    panels.each_with_index do |panel, index|
-      panel_path, extension = panel
-      panel_name = "#{index.to_s.rjust(2, "0")}.#{extension}"
+    panel_result = panels
+    cdn_conn = Faraday.new(panel_result.base_url)
 
-      panel_storage_path = File.join(path, panel_name)
+    panel_result.panel_list.each do |panel|
+      panel_name = [panel.order.rjust(2, "0"), ".", panel.file_extension].join
+      panel_directory = File.join(chapter_directory, panel_name)
 
-      File.open(panel_storage_path, "wb") do |f|
-        cdn_conn.get(panel_path) do |response|
+      File.open(panel_directory, "wb") do |f|
+        cdn_conn.get(panel.path) do |response|
           response.options.on_data = proc { |chunk, _size| f.write chunk }
         end
       end
@@ -91,7 +87,8 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
     island = doc.at_css('astro-island[opts*="ChapterListReact"]')
 
     data = JSON.parse(island["props"])
-    chapter_list = normalize(data)["chapters"]
+    normalized_data = WebtoonSource::Helpers::Transformers.normalize_astro_island_props(data)
+    chapter_list = normalized_data["chapters"]
 
     return [] if chapter_list.nil?
 
@@ -126,19 +123,5 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
     end
 
     mapped_chapters.sort_by { |chapter| -chapter.number.to_f }
-  end
-
-  private
-
-  def normalize(obj) # rubocop:disable Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
-    if obj.is_a?(Array) && obj.length == 2 && [0, 1].include?(obj[0])
-      normalize(obj[1])
-    elsif obj.is_a?(Array)
-      obj.map { |item| normalize(item) }
-    elsif obj.is_a?(Hash)
-      obj.transform_values { |v| normalize(v) }
-    else
-      obj
-    end
   end
 end
