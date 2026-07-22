@@ -153,4 +153,53 @@ class WebtoonSource::Base
       panel_list:
     )
   end
+
+  # Builds the sorted list of Chapters from a source's raw chapter data.
+  #
+  # @param chapter_list [Array<Hash>] the raw chapter data to map.
+  # @param path_prefix [String] the path segment the series/chapter path is built from.
+  # @return [Array<Chapter>] the chapters, sorted by number descending.
+  def build_chapters(chapter_list, path_prefix:)
+    mapped_chapters = chapter_list.map do |chapter|
+      chapter_fields = {
+        id: nil,
+        slug: nil,
+        title: nil,
+        number: nil,
+        is_locked: nil,
+        metadata: {}
+      }
+
+      chapter.each do |key, value|
+        new_key = WebtoonSource::Helpers::String.snake_case(key).to_sym
+
+        if ALLOWED_CHAPTER_FIELDS.include?(key)
+          chapter_fields[new_key] = value
+        else
+          chapter_fields[:metadata][new_key] = value
+        end
+      end
+
+      chapter_fields[:number] = chapter_fields[:number].to_s
+      chapter_fields = finalize_chapter_fields(chapter_fields)
+
+      Chapter.new(
+        **chapter_fields,
+        series_slug: @series_slug,
+        path: [path_prefix, @series_slug, chapter_fields[:slug]].join("/")
+      )
+    end
+
+    mapped_chapters.sort_by { |chapter| -chapter.number.to_f }
+  end
+
+  # Adjusts a chapter's mapped fields before its path is built.
+  # The default is a no-op; override in a subclass when its raw data needs
+  # further normalization (e.g. deriving a usable slug from another field).
+  #
+  # @param chapter_fields [Hash] the mapped chapter fields.
+  # @return [Hash] the adjusted chapter fields.
+  def finalize_chapter_fields(chapter_fields)
+    chapter_fields
+  end
 end

@@ -43,7 +43,7 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
     build_panel_result(doc, index_attribute: "data-page-index")
   end
 
-  def chapters(series_url = nil) # rubocop:disable Metrics/AbcSize,Metrics/PerceivedComplexity
+  def chapters(series_url = nil)
     if series_url.nil?
       ensure_present!(:series_slug)
       response = @conn.get("/comics/#{@series_slug}")
@@ -63,36 +63,12 @@ class WebtoonSource::AsuraScans < WebtoonSource::Base
 
     return [] if chapter_list.nil?
 
-    mapped_chapters = chapter_list.map do |chapter|
-      chapter_fields = {
-        id: nil,
-        slug: nil,
-        title: nil,
-        number: nil,
-        is_locked: nil,
-        metadata: {}
-      }
+    build_chapters(chapter_list, path_prefix: "/comics")
+  end
 
-      chapter.each do |key, value|
-        new_key = WebtoonSource::Helpers::String.snake_case(key).to_sym
+  private
 
-        if ALLOWED_CHAPTER_FIELDS.include?(key)
-          chapter_fields[new_key] = value
-        else
-          chapter_fields[:metadata][new_key] = value
-        end
-      end
-
-      chapter_fields[:number] = chapter_fields [:number].to_s
-      chapter_fields[:slug] = "chapter/#{chapter_fields[:number]}"
-
-      Chapter.new(
-        **chapter_fields,
-        series_slug: @series_slug,
-        path: ["/comics", @series_slug, chapter_fields[:slug]].join("/")
-      )
-    end
-
-    mapped_chapters.sort_by { |chapter| -chapter.number.to_f }
+  def finalize_chapter_fields(chapter_fields)
+    chapter_fields.merge(slug: "chapter/#{chapter_fields[:number]}")
   end
 end

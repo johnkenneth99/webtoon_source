@@ -42,7 +42,7 @@ class WebtoonSource::VortexScans < WebtoonSource::Base
     build_panel_result(doc, index_attribute: "data-reader-index")
   end
 
-  def chapters(series_url = nil) # rubocop:disable Metrics/AbcSize,Metrics/PerceivedComplexity
+  def chapters(series_url = nil)
     if series_url.nil?
       ensure_present!(:series_slug)
 
@@ -62,49 +62,6 @@ class WebtoonSource::VortexScans < WebtoonSource::Base
 
     return [] if chapter_list.nil?
 
-    mapped_chapters = chapter_list.map do |chapter|
-      chapter_fields = {
-        id: nil,
-        slug: nil,
-        title: nil,
-        number: nil,
-        is_locked: nil,
-        metadata: {}
-      }
-
-      chapter.each do |key, value|
-        new_key = WebtoonSource::Helpers::String.snake_case(key).to_sym
-
-        if ALLOWED_CHAPTER_FIELDS.include?(key)
-          chapter_fields[new_key] = value
-        else
-          chapter_fields[:metadata][new_key] = value
-        end
-      end
-
-      chapter_fields[:number] = chapter_fields [:number].to_s
-
-      Chapter.new(
-        **chapter_fields,
-        series_slug: @series_slug,
-        path: ["/series", @series_slug, chapter_fields[:slug]].join("/")
-      )
-    end
-
-    mapped_chapters.sort_by { |chapter| -chapter.number.to_f }
-  end
-
-  private
-
-  def normalize(obj) # rubocop:disable Metrics/CyclomaticComplexity,Metrics/PerceivedComplexity
-    if obj.is_a?(Array) && obj.length == 2 && [0, 1].include?(obj[0])
-      normalize(obj[1])
-    elsif obj.is_a?(Array)
-      obj.map { |item| normalize(item) }
-    elsif obj.is_a?(Hash)
-      obj.transform_values { |v| normalize(v) }
-    else
-      obj
-    end
+    build_chapters(chapter_list, path_prefix: "/series")
   end
 end
