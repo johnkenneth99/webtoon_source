@@ -8,6 +8,7 @@ A gem to source your webtoons from webtoon platforms. Metadata integration via J
 - **Vortex Scans** (`WebtoonSource::VortexScans`) — https://vortexscans.org
 - **Hive Toons** (`WebtoonSource::HiveToons`) — https://hivetoons.org
 - **Kayn Scan** (`WebtoonSource::KaynScan`) — https://kaynscan.org
+- **Ken Comics** (`WebtoonSource::KenComics`) — https://kencomics.com
 
 ## Installation
 
@@ -46,6 +47,7 @@ asura = WebtoonSource::AsuraScans.new
 vortex = WebtoonSource::VortexScans.new
 hive = WebtoonSource::HiveToons.new
 kayn = WebtoonSource::KaynScan.new
+ken = WebtoonSource::KenComics.new
 ```
 
 ### Downloading Chapters
