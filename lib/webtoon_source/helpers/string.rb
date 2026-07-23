@@ -4,7 +4,7 @@ class WebtoonSource
   module Helpers
     module String # rubocop:disable Style/Documentation
       def self.snake_case(string)
-        string.gsub(/([A-Z]+[a-z]+)/) { |match| "_#{match.downcase}" }
+        string.to_s.gsub(/([A-Z]+[a-z]+)/) { |match| "_#{match.downcase}" }
       end
     end
   end
