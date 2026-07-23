@@ -6,6 +6,7 @@ require_relative "webtoon_source/asura_scans"
 require_relative "webtoon_source/vortex_scans"
 require_relative "webtoon_source/hive_toons"
 require_relative "webtoon_source/kayn_scan"
+require_relative "webtoon_source/ken_comics"
 require_relative "webtoon_source/jikan"
 
 require_relative "webtoon_source/helpers/string"
