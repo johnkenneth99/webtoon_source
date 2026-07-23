@@ -2,15 +2,10 @@
 
 require_relative "webtoon_source/version"
 require_relative "webtoon_source/base"
-require_relative "webtoon_source/asura_scans"
-require_relative "webtoon_source/vortex_scans"
-require_relative "webtoon_source/hive_toons"
-require_relative "webtoon_source/kayn_scan"
-require_relative "webtoon_source/ken_comics"
-require_relative "webtoon_source/jikan"
 
-require_relative "webtoon_source/helpers/string"
-require_relative "webtoon_source/helpers/transformers"
+Dir.glob(File.join(__dir__, "webtoon_source", "**", "*.rb")).sort.each do |file|
+  require_relative file
+end
 
 require "faraday"
 require "faraday/xml"
@@ -23,61 +18,29 @@ require "json"
 
 # This is the main namespace for WebtoonSource.
 class WebtoonSource
-  class Error < StandardError; end
-  attr_reader :storage_path
+  extend Forwardable
 
-  DEFAULT_STORAGE_PATH = File.join(Dir.home, "webtoon_source")
+  class Error < StandardError; end
+
+  def_delegators :@source, :download, :panels, :chapters, :series, :chapter, :directory
 
   SOURCES = {
-    asura_scans: WebtoonSource::AsuraScans,
-    vortex_scans: WebtoonSource::VortexScans
+    asura_scans: AsuraScans,
+    vortex_scans: VortexScans,
+    hive_toons: HiveToons,
+    kayn_scan: KaynScan,
+    ken_comics: KenComics
   }.freeze
 
   def initialize(platform = :asura_scans)
-    @storage_path = DEFAULT_STORAGE_PATH
-
-    @source_class = SOURCES[platform] || raise(WebtoonSource::Error, "Unknown platform: #{platform}")
-
-    @source = @source_class.new do |config|
-      config.storage_path = @storage_path
-    end
-
-    yield(self) if block_given?
-  end
-
-  def storage_path=(value)
-    storage_path_callback(value)
-    @storage_path = value
+    @source_class = SOURCES[platform] || raise(Error, "Unknown platform: #{platform}")
+    @source = @source_class.new
   end
 
   # Checks if a specific chapter for a webtoon has been downloaded.
   def downloaded?(chapter_path)
-    path = File.join(@storage_path, chapter_path)
+    path = File.join(@source.storage_path, chapter_path)
     Dir.exist?(path) && !Dir.empty?(path)
-  end
-
-  def download(params)
-    @source.download(params)
-  end
-
-  def panels(chapter_slug)
-    @source.panels(chapter_slug)
-  end
-
-  def chapters(slug)
-    @source.chapters(slug)
-  end
-
-  def series(slug)
-    @source.series(slug)
-  end
-
-  def chapter(number)
-    @source.chapter(number)
-  end
-
-  def directory(name)
-    @source.directory(name)
   end
 
   def metadata(mal_id)
@@ -90,14 +53,7 @@ class WebtoonSource
 
   private
 
-  def storage_path_callback(new_storage_path)
-    @source = @source_class.new(@domain) do |config|
-      config.storage_path = new_storage_path
-    end
-  end
-
   def jikan_service
-    service ||= Jikan.new
-    service
+    @jikan_service ||= Jikan.new
   end
 end
